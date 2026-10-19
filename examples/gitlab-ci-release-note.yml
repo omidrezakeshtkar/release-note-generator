@@ -1,0 +1,33 @@
+# GitLab CI recipe for release-note.
+#
+# Copy this job into your product repo's .gitlab-ci.yml (or include this file). It generates the
+# release note from the current release's issues and keeps it as a pipeline artifact.
+#
+# How the "repo's own key" works: create a PROJECT ACCESS TOKEN on the product repo
+# (Settings → Access tokens, role Reporter+, scope read_api) and store it as a masked CI/CD
+# variable named RELEASE_NOTE_TOKEN. The job below maps it to GITLAB_TOKEN, which the
+# gitlab-api provider picks up automatically (GITLAB_CI + CI_PROJECT_PATH are already set).
+# CI_JOB_TOKEN cannot read the issues API, so a real token is required.
+
+release_note:
+  stage: .post                  # runs after your build/test stages; adjust if you use custom stages
+  image: node:24
+  rules:
+    # manual "Run pipeline" from the web UI, and scheduled pipelines — adjust to taste
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    GITLAB_TOKEN: $RELEASE_NOTE_TOKEN          # the repo's own project access token (masked)
+    # Optional: RELEASE_NOTE_GLM_API_KEY: $GLM_API_KEY
+  script:
+    # Install the tool from its repo (or from npm once published, e.g. `npm install -g release-note-generator`).
+    # A GitHub-hosted tarball also works: https://github.com/omidrezakeshtkar/release-note-generator.git
+    - npm install -g github:omidrezakeshtkar/release-note-generator
+    # The repo defaults to CI_PROJECT_PATH; --release-label-prefix finds the current
+    # "Release vX.Y" issue group and sets the version from the label automatically.
+    - release-note generate --provider gitlab-api --release-label-prefix --out release-note.md
+  artifacts:
+    when: always
+    paths:
+      - release-note.md
+    expire_in: 30 days

@@ -1,0 +1,73 @@
+# GitHub Actions recipe for release-note.
+#
+# Copy this file into your product repo as .github/workflows/release-note.yml. It generates the
+# release note from the current release's issues and either attaches it as an artifact or
+# publishes it as a GitHub Release.
+#
+# How the "repo's own key" works: the built-in GITHUB_TOKEN, passed as GH_TOKEN, is picked up
+# automatically (provider github-api). Grant it read access to issues/PRs, and contents access
+# only if you publish a Release or commit the note.
+#
+# The release itself is discovered by label: every issue tagged like "Release v1.19" belongs to
+# that release, and the version is read from the same label — no input needed.
+
+name: Release note
+
+on:
+  workflow_dispatch:            # manual "Run workflow" — optionally set the output path
+    inputs:
+      out:
+        description: Output file path
+        default: release-notes/release-note.md
+  schedule:
+    - cron: "0 9 1 * *"         # example: 1st of every month at 09:00 UTC — adjust or remove
+
+permissions:
+  issues: read
+  pull-requests: read
+  contents: write               # only needed for the "Publish GitHub Release" step
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Install the tool from its repo (or from npm once published, e.g. `npm i -g release-note-generator`).
+      - name: Install release-note
+        run: npm install -g omidrezakeshtkar/release-note-generator
+
+      - name: Generate the release note
+        env:
+          GH_TOKEN: ${{ github.token }}          # the repo's own key — no personal token required
+          # Optional: RELEASE_NOTE_GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+        run: |
+          release-note generate \
+            --provider github-api \
+            --repo "$GITHUB_REPOSITORY" \
+            --release-label-prefix \
+            --out "${{ github.event.inputs.out || 'release-notes/release-note.md' }}" \
+            --force
+
+      - name: Upload the note as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-note
+          path: release-notes/*.md
+
+      # Optional: publish the note as a GitHub Release. Keep or delete — it creates a real,
+      # visible Release on the repo, tagged with the version found in the labels.
+      - name: Publish GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -m1 -oP '(?<=^🚀   Release Notes – Version )\S+' "${{ github.event.inputs.out || 'release-notes/release-note.md' }}" | tr -d 'v')
+          gh release create "v${VERSION}" --draft --title "v${VERSION}" \
+            --notes-file "${{ github.event.inputs.out || 'release-notes/release-note.md' }}" || \
+          gh release upload "v${VERSION}" --clobber \
+            "${{ github.event.inputs.out || 'release-notes/release-note.md' }}" || true

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Release Note Generator</title>
+	<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+	<header class="topbar">
+		<div class="brand">
+			<span class="brand-mark" aria-hidden="true">🚀</span>
+			<div class="brand-text">
+				<h1>Release Note Generator</h1>
+				<p>release-note-generator · issues → polished release notes</p>
+			</div>
+		</div>
+		<div class="top-actions">
+			<span id="gh-status" class="chip chip-status" data-state="unknown">gh: checking…</span>
+			<button id="open-settings" class="btn btn-ghost" type="button">⚙ Settings</button>
+		</div>
+	</header>
+
+	<main class="layout">
+		<section class="pane pane-form" aria-label="Inputs">
+			<form id="generate-form">
+				<fieldset class="card">
+					<legend>Releases</legend>
+					<div class="row">
+						<select id="release-select" aria-label="Active release"></select>
+						<button id="release-new" class="btn" type="button">New</button>
+						<button id="release-delete" class="btn btn-danger" type="button">Delete</button>
+					</div>
+					<p id="release-status" class="hint" aria-live="polite"></p>
+				</fieldset>
+
+				<fieldset class="card">
+					<legend>Repository</legend>
+					<label for="repo-input">Repository (owner/name or GitHub URL)</label>
+					<div class="row">
+						<input id="repo-input" name="repo" type="text" placeholder="owner/repo" autocomplete="off" spellcheck="false">
+						<button id="repo-check" class="btn" type="button">Check access</button>
+					</div>
+					<p id="repo-status" class="hint" aria-live="polite"></p>
+				</fieldset>
+
+				<fieldset class="card">
+					<legend>Issues</legend>
+					<label for="issues-input">Issue / PR links — one per line, <code>#123</code> or full URL</label>
+					<textarea id="issues-input" rows="4" spellcheck="false" placeholder="https://github.com/owner/repo/issues/1234&#10;#1235"></textarea>
+					<div class="row">
+						<button id="issues-add" class="btn" type="button">Fetch issues</button>
+						<span id="issues-status" class="hint" aria-live="polite"></span>
+					</div>
+					<ul id="issue-list" class="issue-list"></ul>
+				</fieldset>
+
+				<fieldset class="card">
+					<legend>Context files</legend>
+					<label for="context-files">Optional local files — previous notes, coverage maps, draft copy</label>
+					<input id="context-files" type="file" multiple>
+					<ul id="context-list" class="context-list"></ul>
+				</fieldset>
+
+				<fieldset class="card">
+					<legend>Release</legend>
+					<div class="grid-2">
+						<div class="field">
+							<label for="version-input">Version</label>
+							<input id="version-input" type="text" placeholder="1.19" autocomplete="off">
+							<p id="version-hint" class="hint"></p>
+						</div>
+						<div class="field">
+							<label for="date-input">Release date</label>
+							<input id="date-input" type="date">
+							<p class="hint">Left empty → today's date is used.</p>
+						</div>
+					</div>
+					<label for="instructions-input">Extra instructions (optional)</label>
+					<textarea id="instructions-input" rows="2" placeholder="e.g. emphasize the hotfix; keep Page Designer items short"></textarea>
+				</fieldset>
+
+				<div class="actions">
+					<button id="generate-btn" class="btn btn-primary" type="button">Generate release note</button>
+					<button id="cancel-btn" class="btn btn-danger" type="button" hidden>Stop</button>
+				</div>
+			</form>
+		</section>
+
+		<section class="pane pane-output" aria-label="Generated release note">
+			<div class="output-toolbar">
+				<div class="tabs" role="tablist" aria-label="Output view">
+					<button class="tab is-active" id="tab-preview" role="tab" aria-selected="true" aria-controls="output-preview" type="button">Preview</button>
+					<button class="tab" id="tab-raw" role="tab" aria-selected="false" aria-controls="output-raw" type="button">Markdown</button>
+				</div>
+				<div class="output-actions">
+					<button id="copy-btn" class="btn btn-ghost" type="button" disabled>Copy</button>
+					<button id="download-btn" class="btn btn-ghost" type="button" disabled>Download</button>
+					<button id="save-btn" class="btn btn-ghost" type="button" disabled>Save to releases/</button>
+				</div>
+			</div>
+			<p id="output-status" class="hint output-status" aria-live="polite">No release note yet — add issues and generate.</p>
+			<article id="output-preview" class="markdown-body" tabindex="0" aria-label="Release note preview"></article>
+			<textarea id="output-raw" class="raw-output" hidden spellcheck="false" aria-label="Release note markdown — editable"></textarea>
+		</section>
+	</main>
+
+	<dialog id="settings-dialog" aria-labelledby="settings-title">
+		<form method="dialog" class="settings-form" novalidate>
+			<h2 id="settings-title">Settings</h2>
+			<label for="api-key">GLM API key (Coding Plan)</label>
+			<input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key">
+			<p class="hint">💡 Tip: create a <strong>Personal (Coding Plan) API key</strong> in the Z.ai dashboard — a <em>Standard API key</em> will not work (HTTP 429).</p>
+			<label for="base-url">API base URL</label>
+			<input id="base-url" type="text" spellcheck="false" placeholder="https://api.z.ai/api/coding/paas/v4">
+			<label for="model-input">Model</label>
+			<input id="model-input" type="text" spellcheck="false" placeholder="glm-5.3-flash">
+			<label for="default-repo">Default repository</label>
+			<input id="default-repo" type="text" spellcheck="false" placeholder="owner/name">
+			<label for="product-name">Product name (used in the note header)</label>
+			<input id="product-name" type="text" spellcheck="false" placeholder="e.g. My Product — left empty keeps the wording generic">
+			<p class="hint">Stored locally in <code>config.local.json</code> (git-ignored, never committed). The server only listens on <code>127.0.0.1</code>.</p>
+			<p id="key-test-status" class="hint" aria-live="polite"></p>
+			<div class="dialog-actions">
+				<button class="btn" value="cancel" type="submit">Cancel</button>
+				<button class="btn" id="key-test" type="button">Test key</button>
+				<button class="btn btn-primary" id="settings-save" value="confirm" type="button">Save</button>
+			</div>
+		</form>
+	</dialog>
+
+	<dialog id="save-dialog" aria-labelledby="save-title">
+		<form method="dialog" class="settings-form" novalidate>
+				<h2 id="save-title">Save to releases/</h2>
+				<label for="save-filename">File name</label>
+				<input id="save-filename" type="text" spellcheck="false">
+				<p class="hint">Writes into <code id="save-output-dir">releases/</code>. Existing files are never overwritten.</p>
+			<div class="dialog-actions">
+				<button class="btn" value="cancel" type="submit">Cancel</button>
+				<button class="btn btn-primary" id="save-confirm" value="confirm" type="button">Save</button>
+			</div>
+		</form>
+	</dialog>
+
+	<dialog id="new-release-dialog" aria-labelledby="new-release-title">
+		<form method="dialog" class="settings-form" novalidate>
+			<h2 id="new-release-title">New release</h2>
+			<label for="new-version">Version</label>
+			<input id="new-version" type="text" placeholder="1.19" autocomplete="off">
+			<p id="new-version-hint" class="hint"></p>
+			<label for="new-date">Release date</label>
+			<input id="new-date" type="date">
+			<p class="hint">Left empty → today's date is used. The repository and issues are set on the release afterwards.</p>
+			<div class="dialog-actions">
+				<button class="btn" value="cancel" type="submit">Cancel</button>
+				<button class="btn btn-primary" id="new-release-create" value="confirm" type="button">Create</button>
+			</div>
+		</form>
+	</dialog>
+
+	<div id="toast" class="toast" role="status" hidden></div>
+	<div id="chip-tooltip" class="chip-tooltip" role="tooltip" hidden></div>
+
+	<script src="/vendor/marked.js"></script>
+	<script src="/vendor/purify.js"></script>
+	<script src="/app.js"></script>
+</body>
+</html>

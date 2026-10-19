@@ -1,0 +1,226 @@
+.TH RELEASE-NOTE 1 "October 2026" "release-note 0.1.0" "User Commands"
+.SH NAME
+release-note \- turn a release's GitHub/GitLab issues into a polished, persona\-grouped release note
+.SH SYNOPSIS
+.B release-note
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+.B release-note
+selects the issues of one release, drafts a user\-facing release note with the GLM Coding Plan
+API (an OpenAI\-compatible endpoint), and writes it as markdown. It ships three surfaces: a local
+web UI (
+.BR "release-note serve" ),
+a scriptable CLI, and CI recipes for GitHub Actions and GitLab CI.
+.PP
+Issue selection works by explicit refs (#123, URLs, files), by exact label, by release PR
+expansion (a release PR's referenced issues are pulled in automatically), or by
+release\-label discovery: issues tagged e.g.
+.I "Release v1.19"
+are grouped by the version inside the label and the newest group becomes the current release \-
+with the version picked up automatically.
+.SH COMMANDS
+.TP
+.B generate
+Fetch a release's issues and generate the note. See OPTIONS and EXAMPLES.
+.TP
+.B serve
+Start the local web UI (default
+.IR http://127.0.0.1:4310 ).
+.B --port
+.I n
+overrides the port. The server binds 127.0.0.1 only and has no auth \- never expose it.
+.TP
+.B config
+Show or edit the stored settings:
+.BR list " (default), " get " " <field> ", " set " " <field> " " <value> ", " path .
+Fields:
+.BR glmApiKey ", " glmBaseUrl ", " glmModel ", " defaultRepo ", " productName ", " outputDir .
+.TP
+.B check
+Verify provider authentication and repository access.
+.B --repo
+.IR owner/name ,
+.B --provider
+.IR name .
+.TP
+.B test-key
+Verify the GLM API key with an 8\-token request.
+.B --api-key ,
+.B --base-url ,
+.B --model
+override the stored settings.
+.TP
+.B man
+Show this manual page (also available as
+.B man release-note
+after a global npm install).
+.TP
+.BR help " [" command ]
+Show help. The global \fB\-\-help\fR and \fB\-\-version\fR flags also work.
+.SH GENERATE OPTIONS
+.SS Issue selection
+.TP
+.BI --issue " ref"
+Issue ref: #123, 123, or a full GitHub/GitLab URL. Repeatable; also accepted as bare
+positional arguments. \fB@file\fR reads one ref per line from a file, \fB\-\fR reads stdin.
+.TP
+.BI --release-pr " n"
+Expand a release PR: every issue referenced in its body and comments is fetched too.
+Repeatable.
+.TP
+.BI --label " label"
+Select every issue/PR carrying this exact label. Repeatable; the union is fetched.
+.TP
+.BI --release-label-prefix " [prefix]"
+Auto\-discover the current release: issues whose labels start with the prefix (default
+.IR "Release v" )
+are grouped by the version in the label and the newest group is selected.
+.SS Version
+The first of these wins: \fB--version\fR; the highest release label on the selected issues;
+\fB--bump\fR from a base version.
+.TP
+.BI --version " v"
+Exact version, e.g. 1.19.
+.TP
+.BI --bump " patch|minor|major"
+Bump a base version: \fB--from\fR \fIv\fR, or the newest \fIrelease\-note\-v*.md\fR in the
+output folder. major: 1.18 -> 2.0; minor: 1.18 -> 1.19; patch: 1.18 -> 1.18.1.
+.TP
+.BI --from " v"
+Base version for \fB--bump\fR.
+.SS Hotfixes and content
+.TP
+.BI --hotfix " n,n,…"
+Mark these issue numbers as hotfixes (the 🔥 Hotfixes section).
+.TP
+.BI --hotfix-label " label"
+Mark every selected issue carrying this label as a hotfix.
+.TP
+.BI --repo " owner/name"
+Target repository. Default: \fB--repo\fR, the
+.I defaultRepo
+setting, then the CI repo (\fICI_PROJECT_PATH\fR / \fIGITHUB_REPOSITORY\fR).
+.TP
+.BI --date " YYYY-MM-DD"
+Release date (default: today).
+.TP
+.BI --instructions " text" | --instructions-file " path"
+Extra instructions for the model (mutually exclusive).
+.TP
+.BI --context-file " path"
+Attach a local file as context. Repeatable.
+.TP
+.BI --product " name"
+Product name for the note header (default: the \fIproductName\fR setting).
+.SS Output and connection
+.TP
+.BI --out " path|"
+Write the note to a file; \fB\-\fR (default) writes stdout. Existing files are refused unless
+\fB--force\fR is given.
+.TP
+.BI --provider " name"
+.BR gh-cli " (default locally), " github-api ", or " gitlab-api .
+.TP
+.BI --api-key " key" | --base-url " url" | --model " id"
+Per\-run GLM overrides.
+.TP
+.B --quiet
+Suppress progress output on stderr.
+.SH PROVIDERS
+The web UI always uses the
+.B gh CLI
+(whatever account
+.B gh auth login
+knows). Headless runs pick a token\-based REST provider automatically:
+.TS
+tab(|);
+l l l.
+github-api|GH_TOKEN / GITHUB_TOKEN|GitHub Actions (GITHUB_ACTIONS=true)
+gitlab-api|GITLAB_TOKEN|GitLab CI (GITLAB_CI=true)
+gh-cli|gh auth login|local terminals
+.TE
+.PP
+Set \fBRELEASE_NOTE_PROVIDER\fR or \fB--provider\fR to override. In GitHub Actions grant
+\fBpermissions: issues: read\fR; on GitLab use a project access token with
+\fBread_api\fR (\fBCI_JOB_TOKEN\fR cannot read the issues API).
+.SH ENVIRONMENT
+.TP
+.B RELEASE_NOTE_GLM_API_KEY
+GLM API key (overrides config.local.json).
+.TP
+.B RELEASE_NOTE_GLM_BASE_URL
+API endpoint (default: https://api.z.ai/api/coding/paas/v4).
+.TP
+.B RELEASE_NOTE_GLM_MODEL
+Model (default: glm\-5.3\-flash).
+.TP
+.B RELEASE_NOTE_DEFAULT_REPO
+Default repository.
+.TP
+.B RELEASE_NOTE_PRODUCT_NAME
+Product name used in the note header.
+.TP
+.B RELEASE_NOTE_OUTPUT_DIR
+Where notes are saved (default: \fIreleases/\fR inside the tool folder).
+.TP
+.B RELEASE_NOTE_PROVIDER
+Force a backend: gh\-cli, github\-api, or gitlab\-api.
+.TP
+.B RELEASE_NOTE_PORT
+Web UI port (default 4310).
+.SH FILES
+.TP
+.I config.local.json
+Stored settings; git\-ignored, never committed.
+.TP
+.I samples/format-example.md
+The output contract \- structure, headings, and tone of the generated note. Replace it with
+your own format.
+.TP
+.I data/releases/
+Web\-UI release store (one JSON per release); user data, git\-ignored.
+.TP
+.I releases/
+Default output folder for saved notes.
+.TP
+.I examples/
+Ready\-to\-copy GitHub Actions workflow and GitLab CI job.
+.SH EXIT STATUS
+0 on success; 1 on runtime failure (including partially failed issue fetches \- the note may
+still have been written); 2 on usage errors.
+.SH EXAMPLES
+Generate the current release (version comes from its \fIRelease v1.19\fR\-style labels):
+.PP
+.nf
+.RS
+release-note generate \-\-repo owner/repo \-\-release\-label\-prefix
+.RE
+.fi
+.PP
+Inside GitHub Actions with the repository's own token:
+.PP
+.nf
+.RS
+release\-note generate \-\-provider github\-api \-\-release\-label\-prefix \-\-out note.md
+.RE
+.fi
+.PP
+Inside GitLab CI (repo from \fICI_PROJECT_PATH\fR):
+.PP
+.nf
+.RS
+release\-note generate \-\-provider gitlab\-api \-\-label "Release v1.19" \-\-out note.md
+.RE
+.fi
+.PP
+Explicit issues with a hotfix, version bumped from the last saved note:
+.PP
+.nf
+.RS
+release\-note generate \-\-repo owner/repo \-\-issue "#101 #102" \-\-release\-pr 312 \\
+    \-\-hotfix 101 \-\-bump minor \-\-out releases/release\-note\-v1.20.md
+.RE
+.fi
+.SH SEE ALSO
+gh(1), the project README.md, examples/ in the repository.

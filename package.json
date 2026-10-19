@@ -1,0 +1,49 @@
+{
+	"name": "release-note-generator",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "Standalone release-note generator: selects a release's GitHub/GitLab issues (refs, labels, or automatic release-label discovery), drafts a persona-grouped release note with the GLM Coding Plan API, and ships a web UI, a CLI, and CI recipes for GitHub Actions and GitLab.",
+	"keywords": [
+		"release-notes",
+		"changelog",
+		"github",
+		"gitlab",
+		"cli",
+		"ai",
+		"glm"
+	],
+	"bin": {
+		"release-note": "bin/release-note.js"
+	},
+	"man": [
+		"docs/release-note.1"
+	],
+	"files": [
+		"bin/",
+		"src/",
+		"public/",
+		"samples/",
+		"docs/",
+		"examples/",
+		"README.md",
+		"AGENT.md"
+	],
+	"scripts": {
+		"start": "node src/server.ts",
+		"dev": "node src/server.ts",
+		"cli": "node src/cli.ts",
+		"man": "man docs/release-note.1",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"dompurify": "^3.2.4",
+		"marked": "^16.2.1"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"typescript": "^5.6.0"
+	},
+	"engines": {
+		"node": ">=24"
+	}
+}
